@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Drawing;
 using System.Windows.Forms;
-using Accord.Imaging.Converters;
 using System.Collections.Generic;
 
 using System.Data.SqlTypes;

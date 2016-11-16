@@ -10,13 +10,21 @@ namespace kaiam.MongoSync.Sync
 
         public MongoHelper()
         {
-            MongoServerSettings settings = new MongoServerSettings();
-            settings.Server = new MongoServerAddress(
-                ConfigurationManager.AppSettings["mongoConnection"], 
-                Int32.Parse( ConfigurationManager.AppSettings["mongoPort"]));
-            var client = new MongoServer(settings);
-            var database = client.GetDatabase(ConfigurationManager.AppSettings["mongoDB"]);
+            var client = new MongoClient("mongodb://Miljenko:ka1amc00lc10ud@cloud.kaiamcorp.com/KaiamApp?ssl=true&sslVerifyCertificate=false");
+            var database = client.GetServer().GetDatabase(ConfigurationManager.AppSettings["mongoDB"]);
             Collection = database.GetCollection<T>(typeof(T).Name.ToLower());
 ;        }
+    }
+
+    public class MongoViewHelper
+    {
+        public MongoCollection Collection { get; private set; }
+
+        public MongoViewHelper(String viewName)
+        {
+            var client = new MongoClient("mongodb://Miljenko:ka1amc00lc10ud@cloud.kaiamcorp.com/KaiamApp?ssl=true&sslVerifyCertificate=false");
+            var database = client.GetServer().GetDatabase(ConfigurationManager.AppSettings["mongoDB"]);
+            Collection = database.GetCollection(viewName);
+        }
     }
 }

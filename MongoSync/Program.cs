@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.IO;
 
 namespace kaiam.MongoSync
 {
@@ -17,21 +18,32 @@ namespace kaiam.MongoSync
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+            // Application.EnableVisualStyles();
+            // Application.SetCompatibleTextRenderingDefault(false);				
+            //using (ProcessIcon pi = new ProcessIcon())
+            //{
+            //    pi.Display();
+            //    mainForm = new MainForm();
+            //    mainForm.ProcessIcon = pi;
+            //    Application.Run(mainForm);
+            //}
 
-            // Show the system tray icon.					
-            using (ProcessIcon pi = new ProcessIcon())
-            {
-                pi.Display();
-                mainForm = new MainForm();
-                mainForm.ProcessIcon = pi;
-                Application.Run(mainForm);
-            }
+            Sync.SyncManager.Instance.startSync();
         }
 
         public static void log(String str) {
-            mainForm.log(str);
+
+            Console.WriteLine(str);
+
+            DateTime date = DateTime.Now;
+            using (StreamWriter w = File.AppendText("c:\\users\\avolos\\My Documents\\log" + date.ToString("yy-MM-dd") + ".txt"))
+            {
+                w.WriteLine( str);
+                w.Close();
+                w.Dispose();
+            }
+
+
         }
     }
 }

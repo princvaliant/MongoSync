@@ -11,104 +11,100 @@ using System.Data.Entity.Validation;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Windows.Forms;
+using FastMember;
 
 namespace kaiam.MongoSync.Sync
 {
 
     class TxTests : SyncBase
     {
-        private readonly string[] excludeData = new string[] { "Id", "TimeStamp", "TxTestData", "TxTestDataId","Result" };
-        private readonly string[] excludeStatus = new string[] { "Id", "TxTestId", "TxTestChannelDatas", "TxTest", "Result" };
+        private readonly string[] excludeDataFields = new string[] { "_entityWrapper", "Id", "TimeStamp", "TxTestData", "KAIAM.DataAccess.TxTestData", "TxTestDataId", "Result" };
 
-        public TxTests()
-        {
-
-        }
-        public override void copyDataToMongo()
+        public override int processTestData(DateTime start, DateTime end)
         {
             int count = 0;
-
-            DateTime start = getSyncStart();
-            while (start < DateTime.Now)
+            using (KAIAMDataTestContainer db = new KAIAMDataTestContainer(Program.connString))
             {
-                DateTime end = start.AddHours(BATCH_PERIOD_IN_HOURS);
-
-                MongoHelper<TestData> mongoDoc = new MongoHelper<TestData>();
-
-                using (KAIAMDataTestContainer db = new KAIAMDataTestContainer(Program.connString))
+                // Retrieve data updated after timestamp
+                var tcdQ = from tcd in db.TxTestChannelDatas
+                           where tcd.TimeStamp >= start && tcd.TimeStamp < end
+                           select tcd;
+                foreach (TxTestChannelData tcd in tcdQ)
                 {
-                    // Retrieve data updated after timestamp
-                    var tcdQ = from tcd in db.TxTestChannelDatas
-                               where tcd.TimeStamp >= start && tcd.TimeStamp < end
-                               select tcd;
-                    foreach (TxTestChannelData tcd in tcdQ)
-                    {
-                        BsonDocument doc = buildMongoObject(tcd);
-                        if (doc != null)
-                            mongoDoc.Collection.Save(doc);
-                        Application.DoEvents();
-                        count++;
-                    }
+                    BsonDocument doc = buildMongoObject(tcd);
+                    saveDoc(doc);
+                    Application.DoEvents();
+                    count++;
                 }
-                Program.log(domain() + " synced: " + start.ToString() + "-" + end.ToString() + " total:" + count.ToString());
-
-                start = end;
             }
+            return count;
         }
 
         private BsonDocument buildMongoObject(TxTestChannelData tcd)
         {
             // Initialize all related objects from SQL
-            TxTestData txTestData = tcd.TxTestData;
             Measurement measurement = null;
-            Device device = null;
-            if (tcd.TxTestData.TxTest != null)
+
+            // Initialize device object
+            BsonDocument nestedDevice = null;
+
+            // System.Diagnostics.Trace.WriteLine("A " + DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt"));
+
+            if (tcd.TxTestData != null && tcd.TxTestData.TxTest != null)
             {
-                measurement = tcd.TxTestData.TxTest.Measurement;
-                if (measurement.DeviceId.HasValue)
+                try
                 {
-                    device = SyncManager.Instance.getDevice(measurement.DeviceId.Value);
+                    measurement = tcd.TxTestData.TxTest.Measurement;
+                }
+                catch (Exception exc)
+                {
+                    Program.log("ERROR TXTESTS: " + tcd.Id + " - " + exc.Message);
+                }
+                finally
+                {
+                    nestedDevice = SyncManager.Instance.getNestedDevice(measurement);
                 }
             }
-            if (device == null)
+            if (nestedDevice == null)
+                return null;
+
+            // Initialize object that will be stored under 'meta' in mongo document
+            BsonDocument nestedMeta = SyncManager.Instance.getNestedMeta(measurement);
+            if (nestedMeta == null)
                 return null;
 
             // Initialize object that will be stored under 'data' in mongo document
-            BsonDocument nestedData = new BsonDocument { };
-            Dictionary<string, object> dictData = new Dictionary<string, object>();
-            foreach (var prop in tcd.GetType().GetProperties())
-            {
-                if (!excludeData.Contains(prop.Name))
-                    dictData.Add(prop.Name, prop.GetValue(tcd, null));
-            }
-            nestedData.AddRange(dictData);
+            BsonDocument nestedData = SyncManager.Instance.getNestedData(tcd, excludeDataFields);
 
-            // Initialize object that will be stored under 'status' in mongo document
-            BsonDocument nestedStatus = new BsonDocument { };
-            Dictionary<string, object> dictStatus = new Dictionary<string, object>();
-            foreach (var prop in txTestData.GetType().GetProperties())
-            {
-                if (!excludeStatus.Contains(prop.Name))
-                    dictStatus.Add(prop.Name, prop.GetValue(txTestData, null));
-            }
-            dictStatus.Add("StartDateTime", measurement.StartDateTime);
-            dictStatus.Add("EndDateTime", measurement.EndDateTime);
-            dictStatus.Add("User", measurement.User.Login);
-            nestedStatus.AddRange(dictStatus);
+            nestedMeta.Add("SetTemperature_C", tcd.TxTestData.SetTemperature_C);
+            nestedMeta.Add("Channel", nestedData["Channel"]);
+            nestedData.Remove("Channel");
+            nestedMeta.Add("SetVoltage", nestedData["SetVoltage"]);
+            nestedData.Remove("SetVoltage");
 
-            // Initialize device object
-            BsonDocument nestedDevice = new BsonDocument {
-                 { "SerialNumber", device.SerialNumber }
-            };
+            //System.Diagnostics.Trace.WriteLine("D " + DateTime.Now.ToString("MM/dd/yyyy hh:mm:ss.fff tt"));
 
             // Initialize object in root of the document
             BsonDocument rootDoc = new BsonDocument {
                  { "_id",  tcd.Id.ToString()},
+                 { "mid", measurement.Id.ToString()  },
                  { "timestamp", tcd.TimeStamp},
-                 { "type", domain() }
+                 { "type", domain() },
+                 { "subtype", "channeldata" },
+                 { "status", getStatus(measurement.Result)  }
             };
+            if (tcd.TxTestData.Passed)
+            {
+                rootDoc.Add("result", OK_STRING);
+                rootDoc.Add("downstatus", "P");
+            } else
+            {
+                rootDoc.Add("result", ERROR_STRING);
+                rootDoc.Add("downstatus", "F");
+            }
+           
             rootDoc.Add("device", nestedDevice);
-            rootDoc.Add("status", nestedStatus);
+            rootDoc.Add("meta", nestedMeta);
             rootDoc.Add("data", nestedData);
 
             return rootDoc;

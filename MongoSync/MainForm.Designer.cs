@@ -68,14 +68,14 @@ namespace kaiam.MongoSync
             this.logbox.ItemHeight = 18;
             this.logbox.Location = new System.Drawing.Point(9, 65);
             this.logbox.Name = "logbox";
-            this.logbox.Size = new System.Drawing.Size(969, 652);
+            this.logbox.Size = new System.Drawing.Size(969, 832);
             this.logbox.TabIndex = 12;
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(979, 715);
+            this.ClientSize = new System.Drawing.Size(981, 893);
             this.Controls.Add(this.logbox);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.start);
