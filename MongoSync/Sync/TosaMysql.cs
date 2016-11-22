@@ -30,7 +30,7 @@ namespace kaiam.MongoSync.Sync
             try
             {
                 MongoViewHelper mvh = new MongoViewHelper("testdata");
-                String connstr = "SERVER=liv-svr-mysql3;DATABASE=xosa;UID=newark;PASSWORD=GFS54ad:)4dfH";
+                String connstr = "SERVER=liv-svr-mysql3;DATABASE=xosa;UID=newark;PASSWORD=GFS54ad:)4dfH;Connection Timeout=7000";
                 MySqlConnection connection = new MySqlConnection(connstr);
                 connection.Open();
                 string query = "SELECT * FROM osa_test,osa_sub_test,stripe,osa_sub_test_osa_stripe " +
@@ -40,6 +40,7 @@ namespace kaiam.MongoSync.Sync
                     "AND osa_sub_test.id = osa_sub_test_osa_stripe.osa_sub_test_stripes_id";
                 //Create Command
                 MySqlCommand cmd = new MySqlCommand(query, connection);
+                cmd.CommandTimeout = 7200;
                 //Create a data reader and Execute the command
                 MySqlDataReader dataReader = cmd.ExecuteReader();
                 DataTable schemaTable = dataReader.GetSchemaTable();
