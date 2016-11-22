@@ -15,14 +15,14 @@ using FastMember;
 using System.Data.SqlClient;
 using System.Configuration;
 using System.Data;
-using MySql.Data.MySqlClient;
+
 
 namespace kaiam.MongoSync.Sync
 {
     class SyncManager
     {
         private static SyncManager instance;
-        private string[] domains = { "Packout", "RxTests", "Download", "PowerCheckAssembly", "PowerCalBeforeTx", "ModuleTests","ModuleSetups", "TxSetups" , "RxSetups","TxTests" };
+        private string[] domains = { "TosaMysql", "Packout", "RxTests", "Download", "PowerCheckAssembly", "PowerCalBeforeTx", "ModuleTests","ModuleSetups", "TxSetups" , "RxSetups", "TxTests" };
         private string[] dbviews = { "vTestSpeed" };
         private Dictionary<Guid, Device> devices = new Dictionary<Guid, Device>();
         private Dictionary<Guid, Part> parts = new Dictionary<Guid, Part>();
@@ -57,124 +57,7 @@ namespace kaiam.MongoSync.Sync
 
         // Loops through domains and executing sync for each domain
         public void startSync()
-        {
-            // Import TOSA data from Scotland database (mySQL
-            try
-            {
-                MongoViewHelper mvh = new MongoViewHelper("testdata");
-                String connstr = "SERVER=liv-svr-mysql3;DATABASE=xosa;UID=newark;PASSWORD=GFS54ad:)4dfH";
-                MySqlConnection  connection = new MySqlConnection(connstr);
-                connection.Open();
-                string query = "SELECT * FROM osa_test,osa_sub_test,stripe,osa_sub_test_osa_stripe " +
-                    "WHERE test_date > '2016-01-01'  " +
-                    "AND osa_test.id = osa_sub_test.test_id " +
-                    "AND stripe.id = osa_sub_test_osa_stripe.osa_stripe_id " + 
-                    "AND osa_sub_test.id = osa_sub_test_osa_stripe.osa_sub_test_stripes_id";
-                //Create Command
-                MySqlCommand cmd = new MySqlCommand(query, connection);
-                //Create a data reader and Execute the command
-                MySqlDataReader dataReader = cmd.ExecuteReader();
-                DataTable schemaTable = dataReader.GetSchemaTable();
-                string[] ignores = { "id", "version", "spectrum_amplitudes", "spectrum_wavelengths",
-                    "dut_type", "n_temps", "operator_number", "product_num", "dut_number", "test_duration", "i_track_lot_id" };
-                string[] lists = { "liv_current_ma", "liv_power_mw", "liv_voltagev", "liv_mpd_ua",
-                    "mpd_current_ua_stripe0", "mpd_current_ua_stripe1", "mpd_current_ua_stripe2", "mpd_current_ua_stripe3",
-                    "mpd_ratio_db_stripe0", "mpd_ratio_db_stripe1", "mpd_ratio_db_stripe2", "mpd_ratio_db_stripe3"};
-                char[] sep = { ' ' } ;
-                while (dataReader.Read())
-                {
-                    BsonDocument bson = new BsonDocument();
-                    foreach (DataRow row in schemaTable.Rows)
-                    {
-                        String col = row["ColumnName"].ToString();
-                        if (!ignores.Contains(col))
-                        {
-                            Dictionary<string, object> dictData = new Dictionary<string, object>();
-
-                            if (dataReader[col].GetType().ToString() == "System.TimeSpan")
-                            {
-                                int secs = 0;
-                                System.TimeSpan ts = (System.TimeSpan)dataReader[col];
-                                secs += ts.Seconds;
-                                secs += ts.Minutes * 60;
-                                secs += ts.Hours * 3600;
-                                secs += ts.Days * 86400;
-                                dictData.Add(col, secs);
-                            }
-                            else
-                            {
-                                var s = dataReader[col].GetType().ToString();
-                                if (s != "System.DBNull")
-                                {
-                                    if (!lists.Contains(col)) { 
-                                        dictData.Add(col, dataReader[col]);
-                                    } else
-                                    {
-                                        String sl = dataReader[col].ToString();
-                                        string[] sa = sl.Split(sep, StringSplitOptions.RemoveEmptyEntries);
-                                        dictData.Add(col, Array.ConvertAll(sa, i => float.Parse(i)));
-                                    }
-                                }
-                            }
-                            if (!bson.Contains(col))
-                            {
-                                bson.AddRange(dictData);
-                            }
-                        }
-                    }
-
-                    BsonDocument rootDoc = new BsonDocument {
-                         { "_id", "TOSA-" + bson["osa_stripe_id"]},
-                         { "mid",  "TOSAMID-" + bson["osa_sub_test_stripes_id"] },
-                         { "timestamp", bson["test_date"]},
-                         { "type", "tosa" },
-                         { "subtype", "dc" },
-                         { "result", bson["pass"] == 1 ? "P" : "F" },
-                         { "measstatus", bson["pass"] == 1 ? "P" : "F"},
-                         { "status", bson["pass"] == 1 ? "P" : "F" }
-                    };
-
-                    rootDoc.Add("device", new BsonDocument {
-                         { "SerialNumber",  bson["serial_number"]}
-                    });
-                    rootDoc.Add("meta", new BsonDocument {
-                         { "StartDateTime",  bson["test_date"]},
-                         { "EndDateTime",  bson["test_date"]},
-                         { "Channel",  bson["stripe_number"]}
-                    });
-
-                    if (bson["tosa_serial_number"] != null)
-                    {
-                        string[] tsn = bson["tosa_serial_number"].ToString().Split('_');
-                        bson["tsn"] = tsn[0];
-                        bson.Add("laser_pn", new BsonArray());
-                        for (int i = 1; i < tsn.Length; i++)
-                        {
-                            ((BsonArray)bson["laser_pn"]).Add(tsn[i]);
-                        }
-                        bson.Remove("tosa_serial_number");
-                    }
-
-                    bson.Remove("osa_stripe_id");
-                    bson.Remove("osa_sub_test_stripes_id");
-                    bson.Remove("test_date");
-                    bson.Remove("stripe_number");
-                    bson.Remove("pass");
-                    rootDoc.Add("data", bson);
-
-                    mvh.Collection.Save(rootDoc);
-                }
-
-                //close Data Reader and connection
-                dataReader.Close();
-                connection.Close();
-            }
-            catch (Exception exc)
-            {
-                Program.log("TOSA import ERROR: " + exc.Message + "\n" + exc.StackTrace);
-            }
-            // return;
-
+        { 
             // Import data from SQL server
             foreach (var domain in domains)
             {

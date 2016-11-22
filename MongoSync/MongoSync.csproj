@@ -16,7 +16,7 @@
     <SccLocalPath>Svn</SccLocalPath>
     <SccAuxPath>Svn</SccAuxPath>
     <SccProvider>SubversionScc</SccProvider>
-    <PublishUrl>\\db1\MongoSync\</PublishUrl>
+    <PublishUrl>\\192.168.200.8\MongoSync\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Unc</InstallFrom>
     <UpdateEnabled>true</UpdateEnabled>
@@ -173,6 +173,7 @@
     <Compile Include="Sync\Download.cs" />
     <Compile Include="Sync\PowerCheckAssembly.cs" />
     <Compile Include="Sync\PowerCalBeforeTx.cs" />
+    <Compile Include="Sync\TosaMysql.cs" />
     <Compile Include="Sync\TxSetups.cs" />
     <Compile Include="Sync\TxTests.cs" />
     <Compile Include="Sync\RxTests.cs" />
