@@ -14,6 +14,7 @@ using System.Windows.Forms;
 using FastMember;
 using MySql.Data.MySqlClient;
 using System.Data;
+using System.Text.RegularExpressions;
 
 namespace kaiam.MongoSync.Sync
 {
@@ -104,9 +105,6 @@ namespace kaiam.MongoSync.Sync
                          { "status", bson["pass"] == 1 ? "P" : "F" }
                     };
 
-                    rootDoc.Add("device", new BsonDocument {
-                         { "SerialNumber",  bson["serial_number"]}
-                    });
                     rootDoc.Add("meta", new BsonDocument {
                          { "StartDateTime",  bson["test_date"]},
                          { "EndDateTime",  bson["test_date"]},
@@ -123,16 +121,21 @@ namespace kaiam.MongoSync.Sync
                             ((BsonArray)bson["laser_pn"]).Add(tsn[i]);
                         }
                         bson.Remove("tosa_serial_number");
+                  
+                        string result = Regex.Replace(bson["tsn"].ToString(), @"[^\d]", "");
+                        rootDoc.Add("device", new BsonDocument {
+                             { "SerialNumber", result}
+                        });
+
+                        bson.Remove("osa_stripe_id");
+                        bson.Remove("osa_sub_test_stripes_id");
+                        bson.Remove("test_date");
+                        bson.Remove("stripe_number");
+                        bson.Remove("pass");
+                        rootDoc.Add("data", bson);
+
+                        mvh.Collection.Save(rootDoc);
                     }
-
-                    bson.Remove("osa_stripe_id");
-                    bson.Remove("osa_sub_test_stripes_id");
-                    bson.Remove("test_date");
-                    bson.Remove("stripe_number");
-                    bson.Remove("pass");
-                    rootDoc.Add("data", bson);
-
-                    mvh.Collection.Save(rootDoc);
                 }
 
                 //close Data Reader and connection

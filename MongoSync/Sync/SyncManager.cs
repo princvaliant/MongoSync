@@ -67,7 +67,7 @@ namespace kaiam.MongoSync.Sync
                     if (type != null)
                     {
                         SyncBase sync = (SyncBase)Activator.CreateInstance(type);
-                        sync.toMongoTestData(-90);
+                        sync.toMongoTestData(-15);
                     }
                 }
                 catch (Exception exc)
