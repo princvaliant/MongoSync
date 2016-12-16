@@ -121,10 +121,12 @@ namespace kaiam.MongoSync.Sync
                             ((BsonArray)bson["laser_pn"]).Add(tsn[i]);
                         }
                         bson.Remove("tosa_serial_number");
-                  
-                        string result = Regex.Replace(bson["tsn"].ToString(), @"[^\d]", "");
+
+                        string tosaType = bson["tsn"].ToString().Substring(0, 3);
+                        string serNum = bson["tsn"].ToString().Substring(3);
                         rootDoc.Add("device", new BsonDocument {
-                             { "SerialNumber", result}
+                             { "SerialNumber", serNum},
+                             { "TosaType", tosaType}
                         });
 
                         bson.Remove("osa_stripe_id");
