@@ -135,6 +135,7 @@ namespace kaiam.MongoSync.Sync
         {
             if (doc != null)
             {
+                doc.Add("site", "NW");
                 mongoDoc.Collection.Save(doc);
                 // sendData(doc.ToString(), "uploadDataSync");
             }
