@@ -15,6 +15,7 @@ using FastMember;
 using MySql.Data.MySqlClient;
 using System.Data;
 using System.Text.RegularExpressions;
+using Oracle.ManagedDataAccess.Client;
 
 namespace kaiam.MongoSync.Sync
 {
@@ -49,6 +50,21 @@ namespace kaiam.MongoSync.Sync
                     "mpd_current_ua_stripe0", "mpd_current_ua_stripe1", "mpd_current_ua_stripe2", "mpd_current_ua_stripe3",
                     "mpd_ratio_db_stripe0", "mpd_ratio_db_stripe1", "mpd_ratio_db_stripe2", "mpd_ratio_db_stripe3"};
                 char[] sep = { ' ' };
+
+                // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
+                string oradb = "Data Source=(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=172.24.17.62)(PORT=1521)))(CONNECT_DATA=(SID=ITRK02)(SERVER=DEDICATED)));User Id=READ_ONLY_KAIAM;Password=I-TrackLLC123;";
+                OracleConnection oraConn = new OracleConnection(oradb);
+                try
+                {
+                    oraConn.Open();
+                }
+                catch (Exception OraEx)
+                {
+                    Program.log("TOSA I-Track DB Connection ERROR: " + OraEx.Message + "\n" + OraEx.StackTrace);
+                }
+
+                // ------------------------------------------------------------------
+
                 while (dataReader.Read())
                 {
                     cnt++;
@@ -124,9 +140,48 @@ namespace kaiam.MongoSync.Sync
 
                         string tosaType = bson["tsn"].ToString().Substring(0, 3);
                         string serNum = bson["tsn"].ToString().Substring(3);
+
+                        // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
+                        string oraQuery = "SELECT DEVICE_ID, ROUTE, DESCRIPTION FROM (SELECT UNIQUE ROUTE, DEVICE_ID FROM (SELECT DEVICE_ID, LOT_ID AS LID FROM KAIAM.DEVICE_LOT_LOOKUP WHERE DEVICE_ID = '" + serNum + "') CROSS JOIN KAIAM.ASSEMBLE_PROC WHERE LID = KAIAM.ASSEMBLE_PROC.LOT_ID) CROSS JOIN KAIAM.ROUTE_OBJ WHERE ROUTE = ROUTE_ID";
+                        OracleCommand oraCmd = new OracleCommand(oraQuery, oraConn);
+                        oraCmd.CommandType = CommandType.Text;
+                        oraCmd.CommandTimeout = 7200;
+                        OracleDataReader dr = oraCmd.ExecuteReader();
+
+                        try
+                        {
+                            dr.Read();
+                        }
+                        catch (Exception executeException)
+                        {
+                            Program.log("TOSA I-Track DB query ERROR: " + executeException.Message + "\n" + executeException.StackTrace);
+                        }
+
+                        var UKDeviceType = "Not Found";
+                        var UKPartNumber = "Not Found";
+                        var UKDescription = "Not Found";
+
+                        try
+                        {
+                            var route = dr["Route"].ToString().Split('_');
+                            UKDeviceType = route[1];
+                            UKPartNumber = route[2];
+                            UKDescription = dr["DESCRIPTION"].ToString();
+                        }
+                        catch (Exception e)
+                        {
+                            Program.log("TOSA I-Track DB data output ERROR: " + e.Message + "\n" + e.StackTrace);
+                        }
+                        // ------------------------------------------------------------------
+
                         rootDoc.Add("device", new BsonDocument {
                              { "SerialNumber", serNum},
-                             { "TosaType", tosaType}
+                             { "TosaType", tosaType},
+                             // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
+                             { "UKDeviceType", UKDeviceType},
+                             { "UKDevicePartNumber", UKPartNumber},
+                             { "UKDeviceDescription", UKDescription}
+                             // ------------------------------------------------------------------
                         });
 
                         bson.Remove("osa_stripe_id");
@@ -143,6 +198,9 @@ namespace kaiam.MongoSync.Sync
                 //close Data Reader and connection
                 dataReader.Close();
                 connection.Close();
+                // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
+                oraConn.Close();
+                // ------------------------------------------------------------------
             }
             catch (Exception exc)
             {
