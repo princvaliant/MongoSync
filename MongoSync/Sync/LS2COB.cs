@@ -198,7 +198,6 @@ namespace kaiam.MongoSync.Sync
                         rootDoc.Add("data", bson);
 
                         mvh.Collection.Save(rootDoc);
-                        Program.log("ADDED\t" + rootDoc["_id"].ToString() + "\t" + rootDoc["mid"].ToString() + "\t" + rootDoc["timestamp"].ToString() + "\t" + rootDoc["type"].ToString() + "\t" + rootDoc["subtype"].ToString() + "\t" + rootDoc["result"].ToString() + "\t" + rootDoc["measstatus"].ToString() + "\t" + rootDoc["status"].ToString() + "\t" + rootDoc["meta"]["Channel"].ToString() + "\t" + rootDoc["device"]["SerialNumber"].ToString() + "\t" + rootDoc["device"]["PartNumber"].ToString() + "\t" + rootDoc["device"]["PCBSerialNumber"].ToString() + "\t" + rootDoc["device"]["UKDeviceType"].ToString() + "\t" + rootDoc["device"]["UKDevicePartNumber"].ToString() + "\t" + rootDoc["device"]["UKDeviceDescription"].ToString());
                     }
                 }
 
