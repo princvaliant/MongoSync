@@ -1,54 +1,38 @@
-﻿using kaiam.MongoSync.Sync.Models;
-using KAIAM.DataAccess;
-using MongoDB.Bson;
-using System;
-using System.Data.SqlTypes;
+﻿using System;
 using System.Collections.Generic;
-using System.Data.Entity;
-using System.Data.Entity.Infrastructure;
-using System.Data.Entity.SqlServer;
-using System.Data.Entity.Validation;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Windows.Forms;
-using FastMember;
-using MySql.Data.MySqlClient;
 using System.Data;
-using System.Text.RegularExpressions;
+using MongoDB.Bson;
+using MySql.Data.MySqlClient;
 using Oracle.ManagedDataAccess.Client;
 
 namespace kaiam.MongoSync.Sync
 {
-
-    class TosaMysql : SyncBase
+    class Ls2Cob : SyncBase
     {
-        private readonly string[] excludeDataFields = new string[] {  "id", "version", "spectrum_amplitudes", "spectrum_wavelengths",
-                    "dut_type", "n_temps", "operator_number", "product_num", "dut_number", "test_duration", "i_track_lot_id"};
+        private readonly string[] excludeDataFields = new string[] {  "id", "version", "comment", "spectrum_pwr_dbm", "operator", "ecn", "fw_num" };
 
         public override int processTestData(DateTime start, DateTime end)
         {
             int cnt = 0;
-            // Import TOSA data from Scotland database (mySQL
+            // Import LS2 data from Scotland database (mySQL, OracleDb)
             try
             {
                 MongoViewHelper mvh = new MongoViewHelper("testdata");
                 String connstr = "SERVER=liv-svr-mysql3;DATABASE=xosa;UID=newark;PASSWORD=GFS54ad:)4dfH;Connection Timeout=7000";
                 MySqlConnection connection = new MySqlConnection(connstr);
                 connection.Open();
-                string query = "SELECT * FROM osa_test,osa_sub_test,stripe,osa_sub_test_osa_stripe " +
+                string query = "SELECT *, cob_dc_channel_test.id as test_id FROM cob_dc_test,cob_dc_channel_test " +
                     "WHERE test_date >= '" + start.ToString("yyyy-MM-dd HH:mm:ss") + "' AND test_date < '" + end.ToString("yyyy-MM-dd HH:mm:ss") + "' " +
-                    "AND osa_test.id = osa_sub_test.test_id " +
-                    "AND stripe.id = osa_sub_test_osa_stripe.osa_stripe_id " +
-                    "AND osa_sub_test.id = osa_sub_test_osa_stripe.osa_sub_test_stripes_id";
+                    "AND cob_dc_test.id = cob_dc_channel_test.cob_test_id ";
+
                 //Create Command
                 MySqlCommand cmd = new MySqlCommand(query, connection);
                 cmd.CommandTimeout = 7200;
                 //Create a data reader and Execute the command
                 MySqlDataReader dataReader = cmd.ExecuteReader();
                 DataTable schemaTable = dataReader.GetSchemaTable();
-                string[] lists = { "liv_current_ma", "liv_power_mw", "liv_voltagev", "liv_mpd_ua",
-                    "mpd_current_ua_stripe0", "mpd_current_ua_stripe1", "mpd_current_ua_stripe2", "mpd_current_ua_stripe3",
-                    "mpd_ratio_db_stripe0", "mpd_ratio_db_stripe1", "mpd_ratio_db_stripe2", "mpd_ratio_db_stripe3"};
+                string[] lists = { "rx_cal_values", "tx_cal_values", "li_current", "li_power", "mpd_crosstalk", "rx_mpd_leakage", "spectrum_pwr_dbm", "spectrum_wl_nm" };
                 char[] sep = { ' ' };
 
                 // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
@@ -60,7 +44,7 @@ namespace kaiam.MongoSync.Sync
                 }
                 catch (Exception OraEx)
                 {
-                    Program.log("TOSA I-Track DB Connection ERROR: " + OraEx.Message + "\n" + OraEx.StackTrace);
+                    Program.log("LS2 I-Track DB Connection ERROR: " + OraEx.Message + "\n" + OraEx.StackTrace);
                     return -1;
                 }
 
@@ -112,73 +96,86 @@ namespace kaiam.MongoSync.Sync
                     }
 
                     BsonDocument rootDoc = new BsonDocument {
-                         { "_id", "TOSA-" + bson["osa_stripe_id"]},
-                         { "mid",  "TOSAMID-" + bson["osa_sub_test_stripes_id"] },
+                         { "_id", "COB-" + bson["test_id"]},
+                         { "mid",  "COBMID-" + bson["cob_test_id"] },
                          { "timestamp", bson["test_date"]},
-                         { "type", "tosa" },
+                         { "type", bson["dut_type"] },
                          { "subtype", "dc" },
-                         { "result", bson["pass"] == 1 ? "P" : "F" },
-                         { "measstatus", bson["pass"] == 1 ? "P" : "F"},
-                         { "status", bson["pass"] == 1 ? "P" : "F" }
+                         { "result", bson["fail_code"].ToString().Equals("Pass", StringComparison.Ordinal) ? "P" : "F" },
+                         { "measstatus", bson["pass_fail"].ToString().Equals("Pass", StringComparison.Ordinal) ? "P" : "F"},
+                         { "status", bson["pass_fail"].ToString().Equals("Pass", StringComparison.Ordinal) ? "P" : "F" }
                     };
 
                     rootDoc.Add("meta", new BsonDocument {
                          { "StartDateTime",  bson["test_date"]},
                          { "EndDateTime",  bson["test_date"]},
-                         { "Channel",  bson["stripe_number"]}
+                         { "Channel",  bson["channel"]},
+                         { "FirmwareVer", bson["fw_version"] },
+                         {"SWVer", bson["sw_version"] },
+                         {"TestStation", bson["test_station"] }
                     });
 
-                    if (bson["tosa_serial_number"] != null)
+                    if (bson["serial_number"] != null)
                     {
-                        string[] tsn = bson["tosa_serial_number"].ToString().Split('_');
-                        bson["tsn"] = tsn[0];
+                        bson["sn"] = bson["serial_number"];
                         bson.Add("laser_pn", new BsonArray());
-                        for (int i = 1; i < tsn.Length; i++)
-                        {
-                            ((BsonArray)bson["laser_pn"]).Add(tsn[i]);
-                        }
-                        bson.Remove("tosa_serial_number");
+                        bson.Remove("serial_number");
 
-                        string tosaType = bson["tsn"].ToString().Substring(0, 3);
-                        string serNum = bson["tsn"].ToString().Substring(3);
-
-                        // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
-                        string oraQuery = "SELECT DEVICE_ID, ROUTE, DESCRIPTION FROM (SELECT UNIQUE ROUTE, DEVICE_ID FROM (SELECT DEVICE_ID, LOT_ID AS LID FROM KAIAM.DEVICE_LOT_LOOKUP WHERE DEVICE_ID = '" + serNum + "') CROSS JOIN KAIAM.ASSEMBLE_PROC WHERE LID = KAIAM.ASSEMBLE_PROC.LOT_ID) CROSS JOIN KAIAM.ROUTE_OBJ WHERE ROUTE = ROUTE_ID";
-                        OracleCommand oraCmd = new OracleCommand(oraQuery, oraConn);
-                        oraCmd.CommandType = CommandType.Text;
-                        oraCmd.CommandTimeout = 7200;
-                        OracleDataReader dr = oraCmd.ExecuteReader();
-
-                        try
+                        string partNum = bson["part_number"].ToString();
+                        if (partNum.Contains("REFUNIT"))
                         {
-                            dr.Read();
+                            continue;
                         }
-                        catch (Exception executeException)
-                        {
-                            Program.log("TOSA I-Track DB query ERROR: " + executeException.Message + "\n" + executeException.StackTrace);
-                            return -1;
-                        }
+                        string serNum = bson["sn"].ToString();
+                        string pcbSerNum = bson["pcb_serial_number"].ToString();
 
                         var UKDeviceType = "Not Found";
                         var UKPartNumber = "Not Found";
                         var UKDescription = "Not Found";
+                        var UKPartRevision = "Not Found";
 
-                        try
+                        if (!pcbSerNum.Equals("", StringComparison.Ordinal))
                         {
-                            var route = dr["Route"].ToString().Split('_');
-                            UKDeviceType = route[1];
-                            UKPartNumber = route[2];
-                            UKDescription = dr["DESCRIPTION"].ToString();
-                        }
-                        catch (Exception e)
-                        {
-                            Program.log("TOSA I-Track DB data output ERROR: " + e.Message + " (" + serNum + ")");
+                            // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
+                            string oraQuery = "SELECT DISTINCT DEVICE_OBJ.DEVICE_ID, ROUTE, ROUTE_OBJ.DESCRIPTION FROM KAIAM.DEVICE_OBJ, KAIAM.ASSEMBLE_PROC, KAIAM.ASSEMBLE_DATA, KAIAM.ROUTE_OBJ WHERE ASSEMBLE_PROC.ASSEMBLE_PROC_UID = ASSEMBLE_DATA.ASSEMBLE_PROC_UID AND ASSEMBLE_DATA.DEVICE_OBJ_UID = DEVICE_OBJ.DEVICE_OBJ_UID AND DEVICE_OBJ.DEVICE_ID = '" + pcbSerNum + "' AND ROUTE = ROUTE_ID";
+                            OracleCommand oraCmd = new OracleCommand(oraQuery, oraConn);
+                            oraCmd.CommandType = CommandType.Text;
+                            oraCmd.CommandTimeout = 7200;
+                            OracleDataReader dr = oraCmd.ExecuteReader();
+
+                            try
+                            {
+                                dr.Read();
+                            }
+                            catch (Exception executeException)
+                            {
+                                Program.log("LS2 I-Track DB query ERROR: " + executeException.Message + "\n" + executeException.StackTrace);
+                                return -1;
+                            }
+
+                            try
+                            {
+                                if (!pcbSerNum.Equals("", StringComparison.Ordinal))
+                                {
+                                    var route = dr["Route"].ToString().Split('_');
+                                    UKDeviceType = route[1] + route[2];
+                                    UKPartNumber = route[3];
+                                    UKPartRevision = route[4];
+                                    UKDescription = dr["DESCRIPTION"].ToString();
+                                }
+                            }
+
+                            catch (Exception e)
+                            {
+                                Program.log("LS2 I-Track DB data output ERROR: " + e.Message + " (" + serNum + ")");
+                            }
                         }
                         // ------------------------------------------------------------------
 
                         rootDoc.Add("device", new BsonDocument {
                              { "SerialNumber", serNum},
-                             { "TosaType", tosaType},
+                             { "PartNumber", partNum},
+                             { "PCBSerialNumber", bson["pcb_serial_number"] },
                              // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
                              { "UKDeviceType", UKDeviceType},
                              { "UKDevicePartNumber", UKPartNumber},
@@ -186,14 +183,22 @@ namespace kaiam.MongoSync.Sync
                              // ------------------------------------------------------------------
                         });
 
-                        bson.Remove("osa_stripe_id");
-                        bson.Remove("osa_sub_test_stripes_id");
+                        bson.Remove("test_id");
+                        bson.Remove("cob_test_id");
                         bson.Remove("test_date");
-                        bson.Remove("stripe_number");
-                        bson.Remove("pass");
+                        bson.Remove("channel");
+                        bson.Remove("fail_code");
+                        bson.Remove("pass_fail");
+                        bson.Remove("dut_type");
+                        bson.Remove("fw_version");
+                        bson.Remove("part_number");
+                        bson.Remove("sw_version");
+                        bson.Remove("test_station");
+                        bson.Remove("pcb_serial_number");
                         rootDoc.Add("data", bson);
 
                         mvh.Collection.Save(rootDoc);
+                        Program.log("ADDED\t" + rootDoc["_id"].ToString() + "\t" + rootDoc["mid"].ToString() + "\t" + rootDoc["timestamp"].ToString() + "\t" + rootDoc["type"].ToString() + "\t" + rootDoc["subtype"].ToString() + "\t" + rootDoc["result"].ToString() + "\t" + rootDoc["measstatus"].ToString() + "\t" + rootDoc["status"].ToString() + "\t" + rootDoc["meta"]["Channel"].ToString() + "\t" + rootDoc["device"]["SerialNumber"].ToString() + "\t" + rootDoc["device"]["PartNumber"].ToString() + "\t" + rootDoc["device"]["PCBSerialNumber"].ToString() + "\t" + rootDoc["device"]["UKDeviceType"].ToString() + "\t" + rootDoc["device"]["UKDevicePartNumber"].ToString() + "\t" + rootDoc["device"]["UKDeviceDescription"].ToString());
                     }
                 }
 
@@ -206,7 +211,7 @@ namespace kaiam.MongoSync.Sync
             }
             catch (Exception exc)
             {
-                Program.log("TOSA import ERROR: " + exc.Message + "\n" + exc.StackTrace);
+                Program.log("LS2 import ERROR: " + exc.Message + "\n" + exc.StackTrace);
                 return -1;
             }
             return cnt;

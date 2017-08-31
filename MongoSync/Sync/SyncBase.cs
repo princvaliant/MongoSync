@@ -42,6 +42,12 @@ namespace kaiam.MongoSync.Sync
 
                 int count = processTestData(startLag, end);
 
+                if ((this.GetType() == typeof(Ls2Cob) && count == - 1) || (this.GetType() == typeof(TosaMysql) && count == -1))
+                {
+                    Program.log(domain() + " ERROR: something when wrong trying to sync " + startLag.ToString() + "-" + end.ToString());
+                    continue;
+                }
+
                 Program.log(domain() + " synced: " + startLag.ToString() + "-" + end.ToString() + " total:" + count.ToString());
 
                 upsertSyncStart(start);

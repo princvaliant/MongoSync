@@ -22,7 +22,7 @@ namespace kaiam.MongoSync.Sync
     class SyncManager
     {
         private static SyncManager instance;
-        private string[] domains = {  "Packout", "RxTests", "Download", "PowerCheckAssembly", "PowerCalBeforeTx", "ModuleTests","ModuleSetups", "TxSetups" , "RxSetups", "TxTests", "TosaMysql" };
+        private string[] domains = {  "Packout", "RxTests", "Download", "PowerCheckAssembly", "PowerCalBeforeTx", "ModuleTests","ModuleSetups", "TxSetups" , "RxSetups", "TxTests", "TosaMysql", "Ls2Cob" };
         private string[] dbviews = { "vTestSpeed" };
         private Dictionary<Guid, Device> devices = new Dictionary<Guid, Device>();
         private Dictionary<Guid, Part> parts = new Dictionary<Guid, Part>();
