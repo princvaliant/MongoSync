@@ -133,43 +133,55 @@ namespace kaiam.MongoSync.Sync
                         var UKPartNumber = "Not Found";
                         var UKDescription = "Not Found";
                         var UKPartRevision = "Not Found";
+                        var hasRows = false;
+                        string oraQuery;
+                        OracleCommand oraCmd;
+                        OracleDataReader dr = null;
 
-                        if (!pcbSerNum.Equals("", StringComparison.Ordinal))
-                        {
-                            // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
-                            string oraQuery = "SELECT DISTINCT DEVICE_OBJ.DEVICE_ID, ROUTE, ROUTE_OBJ.DESCRIPTION FROM KAIAM.DEVICE_OBJ, KAIAM.ASSEMBLE_PROC, KAIAM.ASSEMBLE_DATA, KAIAM.ROUTE_OBJ WHERE ASSEMBLE_PROC.ASSEMBLE_PROC_UID = ASSEMBLE_DATA.ASSEMBLE_PROC_UID AND ASSEMBLE_DATA.DEVICE_OBJ_UID = DEVICE_OBJ.DEVICE_OBJ_UID AND DEVICE_OBJ.DEVICE_ID = '" + pcbSerNum + "' AND ROUTE = ROUTE_ID";
-                            OracleCommand oraCmd = new OracleCommand(oraQuery, oraConn);
-                            oraCmd.CommandType = CommandType.Text;
-                            oraCmd.CommandTimeout = 7200;
-                            OracleDataReader dr = oraCmd.ExecuteReader();
-
-                            try
+                        try {
+                            if (!pcbSerNum.Equals("", StringComparison.Ordinal))
                             {
-                                dr.Read();
+                                // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
+                                oraQuery = "SELECT DISTINCT DEVICE_OBJ.DEVICE_ID, ROUTE, ROUTE_OBJ.DESCRIPTION FROM KAIAM.DEVICE_OBJ, KAIAM.ASSEMBLE_PROC, KAIAM.ASSEMBLE_DATA, KAIAM.ROUTE_OBJ WHERE ASSEMBLE_PROC.ASSEMBLE_PROC_UID = ASSEMBLE_DATA.ASSEMBLE_PROC_UID AND ASSEMBLE_DATA.DEVICE_OBJ_UID = DEVICE_OBJ.DEVICE_OBJ_UID AND DEVICE_OBJ.DEVICE_ID = '" + pcbSerNum + "' AND ROUTE = ROUTE_ID ORDER BY ROUTE_SEQ DESC FETCH FIRST 1 ROWS ONLY";
+                                oraCmd = new OracleCommand(oraQuery, oraConn);
+                                oraCmd.CommandType = CommandType.Text;
+                                oraCmd.CommandTimeout = 7200;
+                                dr = oraCmd.ExecuteReader();
+                                hasRows = dr.Read();
                             }
-                            catch (Exception executeException)
+                            if (!hasRows)
                             {
-                                Program.log("LS2 I-Track DB query ERROR: " + executeException.Message + "\n" + executeException.StackTrace);
-                                return -1;
-                            }
-
-                            try
-                            {
-                                if (!pcbSerNum.Equals("", StringComparison.Ordinal))
-                                {
-                                    var route = dr["Route"].ToString().Split('_');
-                                    UKDeviceType = route[1] + route[2];
-                                    UKPartNumber = route[3];
-                                    UKPartRevision = route[4];
-                                    UKDescription = dr["DESCRIPTION"].ToString();
-                                }
-                            }
-
-                            catch (Exception e)
-                            {
-                                Program.log("LS2 I-Track DB data output ERROR: " + e.Message + " (" + serNum + ")");
+                                oraQuery = "SELECT DISTINCT DEVICE_OBJ.DEVICE_ID, ROUTE, ROUTE_OBJ.DESCRIPTION FROM KAIAM.DEVICE_OBJ, KAIAM.ASSEMBLE_PROC, KAIAM.ASSEMBLE_DATA, KAIAM.ROUTE_OBJ WHERE ASSEMBLE_PROC.ASSEMBLE_PROC_UID = ASSEMBLE_DATA.ASSEMBLE_PROC_UID AND ASSEMBLE_DATA.DEVICE_OBJ_UID = DEVICE_OBJ.DEVICE_OBJ_UID AND DEVICE_OBJ.DEVICE_ID = '" + serNum + "' AND ROUTE = ROUTE_ID ORDER BY ROUTE_SEQ DESC FETCH FIRST 1 ROWS ONLY";
+                                oraCmd = new OracleCommand(oraQuery, oraConn);
+                                oraCmd.CommandType = CommandType.Text;
+                                oraCmd.CommandTimeout = 7200;
+                                dr = oraCmd.ExecuteReader();
+                                hasRows = dr.Read();
                             }
                         }
+                        catch (Exception executeException)
+                        {
+                            Program.log("LS2 I-Track DB query ERROR: " + executeException.Message + "\n" + executeException.StackTrace);
+                            return -1;
+                        }
+
+                        try
+                        {
+                            if (hasRows)
+                            {
+                                var route = dr["Route"].ToString().Split('_');
+                                UKDeviceType = route[1] + route[2];
+                                UKPartNumber = route[3];
+                                UKPartRevision = route[4];
+                                UKDescription = dr["DESCRIPTION"].ToString();
+                            }
+                        }
+
+                        catch (Exception e)
+                        {
+                            Program.log("LS2 I-Track DB data output ERROR: " + e.Message + " (" + serNum + ")");
+                        }
+                        
                         // ------------------------------------------------------------------
 
                         rootDoc.Add("device", new BsonDocument {
@@ -179,7 +191,8 @@ namespace kaiam.MongoSync.Sync
                              // ----- 2017-08-25: Adding connection to Livingston I-Track DB -----
                              { "UKDeviceType", UKDeviceType},
                              { "UKDevicePartNumber", UKPartNumber},
-                             { "UKDeviceDescription", UKDescription}
+                             { "UKDeviceDescription", UKDescription},
+                             { "UKDeviceRevision", UKPartRevision}
                              // ------------------------------------------------------------------
                         });
 
