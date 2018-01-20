@@ -36,7 +36,7 @@ namespace kaiam.MongoSync
             Console.WriteLine(str);
 
             DateTime date = DateTime.Now;
-            using (StreamWriter w = File.AppendText("c:\\users\\avolos\\My Documents\\log" + date.ToString("yy-MM-dd") + ".txt"))
+            using (StreamWriter w = File.AppendText("c:\\users\\jdominguez\\My Documents\\log" + date.ToString("yy-MM-dd") + ".txt"))
             {
                 w.WriteLine( str);
                 w.Close();

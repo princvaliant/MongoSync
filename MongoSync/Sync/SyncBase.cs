@@ -25,6 +25,7 @@ namespace kaiam.MongoSync.Sync
         protected const string HOST = "http://localhost:3000/";
         protected const string TOKEN = "?token=tlIu3naNJQ-zMrTbDmSczUB15P0DKtThlbzS4sA_Hkv&";
         protected const int BATCH_PERIOD_IN_HOURS = 3;
+        protected const int BATCH_PERIOD_IN_MINUTES = 5;
         protected const string OK_STRING = "OK";
         protected const string ERROR_STRING = "ERR";
 
@@ -38,7 +39,7 @@ namespace kaiam.MongoSync.Sync
             while (start < DateTime.Now)
             {
                 DateTime startLag = start.AddMinutes(lag);
-                DateTime end = start.AddHours(BATCH_PERIOD_IN_HOURS);
+                DateTime end = start.AddMinutes(BATCH_PERIOD_IN_MINUTES);
 
                 int count = processTestData(startLag, end);
 
