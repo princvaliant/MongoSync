@@ -99,6 +99,7 @@ namespace kaiam.MongoSync.Sync
                          { "_id", "COB-" + bson["test_id"]},
                          { "mid",  "COBMID-" + bson["cob_test_id"] },
                          { "timestamp", bson["test_date"]},
+                         { "step", "download" },
                          { "type", bson["dut_type"] },
                          { "subtype", "dc" },
                          { "result", bson["fail_code"].ToString().Equals("Pass", StringComparison.Ordinal) ? "P" : "F" },
