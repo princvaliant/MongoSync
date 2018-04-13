@@ -106,7 +106,14 @@ namespace kaiam.MongoSync.Sync
                             }
                             if (!bson.Contains(col))
                             {
-                                bson.AddRange(dictData);
+                                if (col == "test_date")
+                                {
+                                    bson.Add(col, Convert.ToDateTime(dictData[col]).ToLocalTime());
+                                }
+                                else
+                                {
+                                    bson.AddRange(dictData);
+                                }
                             }
                         }
                     }
